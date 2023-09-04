@@ -1,0 +1,164 @@
+---
+title: "Tugas Praktikum 1 MPDW"
+author: "Pingkan Febbe Fiorela Kereh"
+date: "2023-09-04"
+output: html_document
+---
+
+## Packages
+```{r}
+library("forecast")
+library("graphics")
+library("TTR")
+library("TSA")
+```
+
+## Input Data
+```{r}
+library(readxl)
+data <- read_excel("D:/COLLEGE/SMT 5/Metode Peramalan Deret Waktu/Data.xlsx")
+```
+
+## Eksplorasi Data
+```{r}
+View(data)
+str(data)
+dim(data)
+```
+Cek apakah ada missing value
+```{r}
+data[which(is.na(data$Close)),]
+```
+
+Mengubah data agar terbaca sebagai data deret waktu
+```{r}
+data$Date <- as.Date(data$Date)
+data.ts <- ts(data$Close)
+```
+
+Menampilkan ringkasan data
+```{r}
+summary(data.ts)
+```
+Membuat plot data deret waktu
+```{r}
+ts.plot(data.ts, xlab="Periode Waktu", ylab="Harga Saham", 
+        main = "Plot Harga Saham BCA mingguan", sub = "3 Januari 2021 - 27 Agustus 2023")
+points(data.ts)
+```
+
+## Pembagian Data
+
+Membagi data latih dan data uji (80% data latih dan 20% data uji)
+```{r}
+train_data <- data[1:110,]
+test_data <- data[111:138,]
+train_data.ts <- ts(train_data$Close)
+test_data.ts <- ts(test_data$Close)
+```
+
+## Eksplorasi Data
+
+Eksplorasi keseluruhan data
+```{r}
+plot(data.ts, col="blue",main="Plot of All Data")
+points(data.ts)
+```
+
+Eksplorasi data latih
+```{r}
+plot(train_data.ts, col="orange",main="Training Data Plot")
+points(train_data.ts)
+```
+
+Eksplorasi data uji
+```{r}
+plot(test_data.ts, col="purple",main="Testing Data Plot")
+points(test_data.ts)
+```
+
+Eksplorasi menggunakan ggplot
+```{r}
+library(ggplot2)
+ggplot() + 
+  geom_line(data = train_data, aes(x = Date, y = Close, col = "Training Data")) +
+  geom_line(data = test_data, aes(x = Date, y = Close, col = "Testing Data")) +
+  labs(x = "Periode Waktu", y = "Harga Saham", color = "Legend") +
+  scale_colour_manual(name="Keterangan:", breaks = c("Training Data", "Testing Data"),
+                      values = c("green", "red")) + 
+  theme_bw() + theme(legend.position = "bottom",
+                     plot.caption = element_text(hjust=0.5, size=12))
+```
+
+## Pemulusan
+
+### Double Moving Average
+Berdasarkan hasil eksplorasi data yang telah dilakukan, dapat diketahui bahwa data cenderung memiliki pola data tren, sehingga metode Pemulusan DMA merupakan metode yang tepat untuk data Harga Saham BCA close.
+
+Me-looping nilai n dari 3 sampai dengan 11 sehingga didapatkan n optimum.
+```{r}
+accurate = data.frame()
+for(n in 3:11){
+  data.sma<-SMA(train_data.ts, n=n)
+  dma <- SMA(data.sma, n=n)
+  At <- 2*data.sma - dma
+  Bt <- 2/(n-1)*(data.sma - dma)
+  data.ramal<- c(NA, At+Bt)
+  
+  error.dma = train_data.ts-data.ramal[1:length(train_data.ts)]
+  SSE.dma = sum(error.dma[(2*n):length(train_data.ts)]^2, na.rm = T)
+  RMSE.dma = sqrt(mean(error.dma[(2*n):length(train_data.ts)]^2, na.rm = T))
+  MAPE.dma = mean(abs((error.dma[(2*n):length(train_data.ts)]/train_data.ts[(2*n):length(train_data.ts)])*100), na.rm = T)
+  
+  accurate.dma <- matrix(c(SSE.dma, RMSE.dma, MAPE.dma))
+  row.names(accurate.dma)<- c("SSE", "RMSE", "MAPE")
+  colnames(accurate.dma) <- c(paste("Accurate m =", n))
+  accurate = rbind(accurate, c(n=n, RMSE=accurate.dma[2], MAPE=accurate.dma[3]))
+}
+colnames(accurate) = c("n", "RMSE", "MAPE")
+accurate[order(accurate[,2]),]
+```
+Berdasarkan hasil looping, nilai RMSE dan MAPE terkecil dimiliki oleh metode pemulusan DMA pada n = 3 yang dapat dijadikan n optimum dalam rentang nilai n dari 3 sampai 11. Dengan nilai MSE terkecil sebesar 255.4422 dan MAPE terkecil sebesar 2.715924
+
+Pemulusan DMA dengan N Optimum (3)
+```{r}
+dma <- SMA(data.sma, n = 3)
+At <- 2*data.sma - dma
+Bt <- 2/(3-1)*(data.sma - dma)
+data.dma<- At+Bt
+data.ramal<- c(NA, data.dma)
+```
+
+```{r}
+t = 1:24
+f = c()
+
+for (i in t) {
+  f[i] = At[length(At)] + Bt[length(Bt)]*(i)
+}
+
+data.gab <- cbind(aktual = c(train_data.ts,rep(NA,24)), pemulusan = c(data.sma,rep(NA,24)),pemulusan = c(data.dma, rep(NA,24)),At = c(At, rep(NA,24)), Bt = c(Bt,rep(NA,24)),ramalan = c(data.ramal, f[-1]))
+data.gab
+```
+
+Hasil Pemulusan menggunakan metode DMA
+```{r}
+ts.plot(data.ts, xlab="Periode Waktu ", ylab="Harga Saham", main= "DMA N=3 Data Harga Saham BCA")
+points(data.ts)
+lines(data.gab[,3],col="green",lwd=2)
+lines(data.gab[,6],col="red",lwd=2)
+legend("topleft",c("data aktual","data pemulusan","data peramalan"), lty=8, col=c("black","green","red"), cex=0.8)
+```
+
+Menghitung keakuratan data training dan data testing (DMA)
+```{r}
+error_test.dma = test_data.ts-data.gab[111:134,6]
+MSE_train.dma <- sqrt(mean((train_data.ts-data.ramal[-88])^2, na.rm = T))
+MSE_test.dma <- mean(error_test.dma^2)
+MAPE_train.dma <- mean(abs((train_data.ts-data.ramal[-88])/train_data.ts)*100, na.rm = T)
+MAPE_test_dma <- mean(abs((error_test.dma/test_data.ts*100)))
+Akurasi_DMA <- data.frame("DMA_Train"=c(MSE_train.dma,MAPE_train.dma), "DMA_Test"=c(MSE_test.dma,MAPE_test.dma))
+rownames(Akurasi_DMA) <- c("MSE","MAPE")
+Akurasi_DMA
+```
+Berdasarkan hasil perhitungan di atas, didapatkan bahwa nilai MSE Data testing dma sebesar 507472.59 dan MAPE Data testing dma sebesar 16.27. Kedua nilai error ini jauh lebih besar jika dibandingkan data trainingnya.
