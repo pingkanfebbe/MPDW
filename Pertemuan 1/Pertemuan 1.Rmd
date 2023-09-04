@@ -1,0 +1,212 @@
+---
+title: "Tugas Praktikum 1 MPDW"
+author: "Pingkan Febbe Fiorela Kereh"
+date: "2023-09-04"
+output: html_document
+---
+
+## Packages
+```{r}
+library("forecast")
+library("graphics")
+library("TTR")
+library("TSA")
+```
+
+## Impor Data
+```{r}
+library(readxl)
+data <- read_excel("D:/COLLEGE/SMT 5/Metode Peramalan Deret Waktu/Data.xlsx")
+```
+
+## Eksplorasi Data
+```{r}
+View(data)
+str(data)
+dim(data)
+```
+
+Cek apakah ada missing value
+```{r}
+data[which(is.na(data$Close)),]
+```
+
+Mengubah data agar terbaca sebagai data deret waktu
+```{r}
+data$Date <- as.Date(data$Date)
+data.ts <- ts(data$Close)
+```
+
+Menampilkan ringkasan data
+```{r}
+summary(data.ts)
+```
+
+Membuat plot data deret waktu
+```{r}
+ts.plot(data.ts, xlab="Periode Waktu", ylab="Harga Saham", 
+        main = "Plot Harga Saham BCA mingguan", sub = "3 Januari 2021 - 27 Agustus 2023")
+points(data.ts)
+```
+
+## Pembagian Data
+
+Membagi data latih dan data uji (80% data latih dan 20% data uji)
+```{r}
+train_data <- data[1:110,]
+test_data <- data[111:138,]
+train_data.ts <- ts(train_data$Close)
+test_data.ts <- ts(test_data$Close)
+```
+
+## Eksplorasi Data
+
+Eksplorasi keseluruhan data
+```{r}
+plot(data.ts, col="blue",main="Plot of All Data")
+points(data.ts)
+```
+
+Eksplorasi data latih
+```{r}
+plot(train_data.ts, col="orange",main="Training Data Plot")
+points(train_data.ts)
+```
+
+Eksplorasi data uji
+```{r}
+plot(test_data.ts, col="purple",main="Testing Data Plot")
+points(test_data.ts)
+```
+
+Eksplorasi menggunakan ggplot
+```{r}
+library(ggplot2)
+ggplot() + 
+  geom_line(data = train_data, aes(x = Date, y = Close, col = "Training Data")) +
+  geom_line(data = test_data, aes(x = Date, y = Close, col = "Testing Data")) +
+  labs(x = "Periode Waktu", y = "Harga Saham", color = "Legend") +
+  scale_colour_manual(name="Keterangan:", breaks = c("Training Data", "Testing Data"),
+                      values = c("green", "red")) + 
+  theme_bw() + theme(legend.position = "bottom",
+                     plot.caption = element_text(hjust=0.5, size=12))
+```
+
+## Metode Pemulusan
+
+### Single Moving Average
+
+Pada data akan dilakukan metode pemulusan dengan n=4
+```{r}
+data.sma<-SMA(train_data.ts, n=4)
+data.sma
+```
+
+Dilakukan peramalan 1 periode ke depan (forecast 1 periode ke depan)
+```{r}
+data.ramal<-c(NA,data.sma)
+data.ramal 
+```
+
+Dilakukan peramalan 24 periode ke depan (forecast 24 periode ke depan)
+```{r}
+data.gab<-cbind(aktual=c(train_data.ts,rep(NA,24)),
+                pemulusan=c(data.sma,rep(NA,24)),
+                ramalan=c(data.ramal,rep(data.ramal[length(data.ramal)],23)))
+data.gab 
+```
+
+Hasil Pemulusan menggunakan metode SMA
+```{r}
+ts.plot(data.ts, xlab="Periode Waktu ", ylab="Harga Saham", main= "SMA N=4 Data Harga Saham BCA")
+points(data.ts)
+lines(data.gab[,2],col="coral",lwd=2)
+lines(data.gab[,3],col="green",lwd=2)
+legend("topleft",c("data aktual","data pemulusan","data peramalan"), 
+       lty=8, col=c("black","green","coral"), cex=0.5)
+```
+
+Menghitung nilai keakuratan data latih metode SMA
+```{r}
+error_train.sma <- train_data.ts-data.ramal[1:length(train_data.ts)]
+SSE_train.sma = sum(error_train.sma[5:length(train_data.ts)]^2)
+MSE_train.sma = mean(error_train.sma[5:length(train_data.ts)]^2)
+MAPE_train.sma <- mean(abs((error_train.sma[5:length(train_data.ts)]/data.ramal[5:length(train_data.ts)])*100))
+
+akurasi_train.sma <- matrix(c(SSE_train.sma, MSE_train.sma, MAPE_train.sma))
+row.names(akurasi_train.sma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_train.sma) <- c("Akurasi m = 4")
+akurasi_train.sma
+```
+
+Menghitung nilai keakuratan data uji metode SMA
+```{r}
+error_test.sma = test_data.ts-data.gab[111:134,3]
+SSE_test.sma = sum(error_test.sma^2)
+MSE_test.sma = mean(error_test.sma^2)
+MAPE_test.sma = mean(abs((error_test.sma/test_data.ts*100)))
+
+akurasi_test.sma <- matrix(c(SSE_test.sma, MSE_test.sma, MAPE_test.sma))
+row.names(akurasi_test.sma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_test.sma) <- c("Akurasi m = 4")
+akurasi_test.sma
+```
+
+### Double MOving Average
+
+```{r}
+dma <- SMA(data.sma, n = 4)
+At <- 2*data.sma - dma
+Bt <- 2/(4-1)*(data.sma - dma)
+data.dma<- At+Bt
+data.ramal2<- c(NA, data.dma)
+```
+
+```{r}
+t = 1:24
+f = c()
+
+for (i in t) {
+  f[i] = At[length(At)] + Bt[length(Bt)]*(i)
+}
+
+data.gab2 <- cbind(aktual = c(train_data.ts,rep(NA,24)), pemulusan1 = c(data.sma,rep(NA,24)),pemulusan2 = c(data.dma, rep(NA,24)),At = c(At, rep(NA,24)), Bt = c(Bt,rep(NA,24)),ramalan = c(data.ramal2, f[-1]))
+data.gab2
+```
+
+Hasil Pemulusan menggunakan metode DMA
+```{r}
+ts.plot(data.ts, xlab="Periode Waktu ", ylab="Harga Saham", main= "DMA N=4 Data Harga Saham BCA")
+points(data.ts)
+lines(data.gab2[,3],col="green",lwd=2)
+lines(data.gab2[,6],col="red",lwd=2)
+legend("topleft",c("data aktual","data pemulusan","data peramalan"), lty=8, col=c("black","green","red"), cex=0.8)
+```
+
+Menghitung nilai keakuratan data latih
+```{r}
+error_train.dma = train_data.ts-data.ramal2[1:length(train_data.ts)]
+SSE_train.dma = sum(error_train.dma[8:length(train_data.ts)]^2)
+MSE_train.dma = mean(error_train.dma[8:length(train_data.ts)]^2)
+MAPE_train.dma = mean(abs((error_train.dma[8:length(train_data.ts)]/train_data.ts[8:length(train_data.ts)])*100))
+
+akurasi_train.dma <- matrix(c(SSE_train.dma, MSE_train.dma, MAPE_train.dma))
+row.names(akurasi_train.dma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_train.dma) <- c("Akurasi m = 4")
+akurasi_train.dma
+```
+
+Menghitung nilai keakuratan data uji
+```{r}
+error_test.dma = test_data.ts-data.gab2[111:134,6]
+SSE_test.dma = sum(error_test.dma^2)
+MSE_test.dma = mean(error_test.dma^2)
+MAPE_test.dma = mean(abs((error_test.dma/test_data.ts*100)))
+
+akurasi_test.dma <- matrix(c(SSE_test.dma, MSE_test.dma, MAPE_test.dma))
+row.names(akurasi_test.dma)<- c("SSE", "MSE", "MAPE")
+colnames(akurasi_test.dma) <- c("Akurasi m = 4")
+akurasi_test.dma
+```
+
+Pada data latih dan data uji, keduanya lebih baik menggunakan metode SMA dibandingkan metode DMA  
