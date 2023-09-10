@@ -1,0 +1,291 @@
+---
+title: "Tugas Praktikum 2 MPDW"
+author: "Pingkan Febbe Fiorela Kereh"
+date: "2023-09-08"
+output: html_document
+---
+
+## Input Data
+```{r}
+data <- read.csv("D:/COLLEGE/SMT 5/Metode Peramalan Deret Waktu/New Delhi AQI dataset.csv")
+str(data)
+dim(data)
+```
+## Filtering Data
+Dilakukan filtering kolom pada data untuk memilih peubah yang relevan dengan regresi. Dipilih Air Quality Index (AQI) sebagai peubah dependen(y). Kemudian dipilih tingkat senyawa no2(x1), tingkat senyawa o3(x2), tingkat pm25(x3) dan tingkat senyawa so2(x4) sebagai peubah-peubah independen.
+```{r}
+data <- data[c(2,5:6,8:9)]
+str(data)
+```
+
+## Eksplorasi Data
+```{r}
+# Membentuk objek time series
+data.ts<-ts(data$AQI)
+data.ts
+
+# Membuat plot time series
+ts.plot(data.ts, xlab="Time Period ", ylab="AQI", main= "Time Series Plot of New Delhi AQI")
+points(data.ts)
+```
+
+```{r}
+# Menampilkan ringkasan data
+summary(data)
+```
+Berdasarkan hasil summary data, dapat diketahui bahwa nilai Air Quality Index (AQI) New Delhi berada pada rentang 19.00 hingga 32.00 dengan nilai rataan sebesar 26.18. Begitupun dengan peubah-peubah bebasnya yaitu tingkat senyawa no2 berada pada rentang 0.01556 hingga 0.06091 dengan rataan sebesar 0.04200, tingkat senyawa O3 berada pada rentang 41.48 hingga 68.66 dengan rataan sebesar 56.57, tingkat PM25 berada pada rentang 1.633 hingga 5.637 dengan rataan sebesar 2.295 dan tingkat senyawa so2 berada pada rentang 0.2831 hingga 0.4545 dengan rataan sebesar 0.3634.
+
+```{r}
+# Scatter Plot AQI (Y) dengan no2 (X1)
+library(ggplot2)
+ggplot(data, aes(x = no2, y = AQI)) + 
+  geom_point(color= "brown") + 
+  geom_smooth(method = "lm", color = "darkblue") +
+  theme_minimal() + 
+  labs(x = "no2", y = "AQI",
+       title = "Scatter Plot AQI vs no2")
+```
+Berdasarkan scatter plot diatas, menunjukkan hubungan linier yang positif antara AQI dan no2. Artinya, AQI akan meningkat seiring dengan meningkatnya tingkat senyawa no2.
+
+```{r}
+# Scatter Plot AQI (Y) dengan O3 (X2)
+library(ggplot2)
+ggplot(data, aes(x = o3, y = AQI)) + 
+  geom_point(color= "brown") + 
+  geom_smooth(method = "lm", color = "darkblue") +
+  theme_minimal() + 
+  labs(x = "O3", y = "AQI",
+       title = "Scatter Plot AQI vs O3")
+```
+Berdasarkan scatter plot diatas, menunjukkan hubungan linier yang positif antara AQI dan O3. Artinya, AQI akan meningkat seiring dengan meningkatnya tingkat senyawa O3. Dari plot juga terlihat bahwa titik-titik data cenderung dekat dengan garis linier yang menunjukkan adanya hubungan yang cukup erat antara kedua peubah.
+
+```{r}
+# Scatter Plot AQI (Y) dengan PM25 (X3)
+ggplot(data, aes(x = pm25, y = AQI)) + 
+  geom_point(color= "brown") + 
+  geom_smooth(method = "lm", color = "darkblue") +
+  theme_minimal() + 
+  labs(x = "PM25", y = "AQI",
+       title = "Scatter Plot AQI vs PM25")
+```
+Berdasarkan scatter plot di atas, menunjukkan hubungan linier yang cenderung negatif antara AQI dengan PM25. Artinya AQI akan menurun seiring dengan meningkatnya tingkat PM25.
+
+```{r}
+# Scatter Plot AQI (Y) dengan so2 (X4)
+ggplot(data, aes(x = so2, y = AQI)) + 
+  geom_point(color= "brown") + 
+  geom_smooth(method = "lm", color = "darkblue") +
+  theme_minimal() + 
+  labs(x = "so2", y = "AQI",
+       title = "Scatter Plot AQI vs so2")
+```
+Berdasarkan scatter plot di atas, menunjukkan hubungan linier yang cenderung negatif antara AQI dengan so2. Artinya AQI akan menurun seiring dengan meningkatnya tingkat senyawa so2.
+
+```{r}
+# Matriks Korelasi
+library(corrplot)
+corrplot(corr=cor(data), method = "number", type = "upper")
+```
+Matriks Korelasi diatas menunjukkan korelasi antar peubah. Dapat terlihat bahwa korelasi antara AQI dengan O3 memiliki korelasi yang sangat kuat yaitu sebesar 0.97
+
+## Model Regresi
+```{r}
+y <- data$AQI
+x1 <- data$no2
+x2 <- data$o3
+x3 <- data$pm25
+x4 <- data$so2
+model.rlb <- lm(y ~ x1+x2+x3+x4, data=data)
+summary(model.rlb)
+```
+Berdasarkan hasil perhitungan di atas, didapatkan model regresi sebagai berikut : $$y_i=-0.55178+10.47183x1_t+0.46903x2_t+1.23701x3_t-8.47708x4_t+e$$. Berdasarkan ringkasan model dapat diketahui bahwa hasil uji F memiliki *p-value* \< $\alpha$ (5%). Artinya, minimal terdapat satu variabel yang berpengaruh nyata terhadap model. 
+
+Diperoleh pula hasil uji t-parsial yaitu didapat beberapa parameter regresi yang signifikan dengan memiliki *p-value* \< $\alpha$ (5%) yaitu koefisien peubah x2,x3,dan x4 sehingga nyata pada taraf 5% dan ada juga yang tidak signifikan dengan memiliki *p-value* \> $\alpha$ (5%) yaitu intersep dan koefisien peubah x1 sehingga keduanya tidak nyata pada taraf 5%. 
+
+Selanjutnya dapat dilihat juga nilai $R^2=0.989$. Artinya, sebesar 98.9% keragaman Air Quality Index(AQI) dapat dijelaskan oleh peubah tingkat senyawa no2, tingkat senyawa o3, tingkat PM2 dan tingkat senyawa so2.
+
+## Pengujian Asumsi Klasik
+
+### Prosedur Eksploratif
+```{r}
+# Sisaan dan fitted value
+sisaan<- residuals(model.rlb)
+fitValue<- predict(model.rlb)
+
+# Normal QQ-Plot
+qqnorm(sisaan);qqline(sisaan, col = "purple", lwd = 2)
+hist(sisaan, col = "purple")
+
+# Plot Residual vs Fitted Value
+plot(fitValue, sisaan, xlab = "Residual", ylab = "Fitted Values", main = "Residual vs Fitted Values", pch = 20);abline(h = 0, lwd = 1,col = "purple")
+
+# Plot Residual vs Order
+plot(sisaan, type = 'o', xlab = "Residual", ylab = "Order", main = "Residual vs Order", pch = 20);abline(h = 0, lwd = 1, col = "purple")
+
+#ACF dan PACF
+par(mfrow = c(1,2))
+acf(sisaan)
+pacf(sisaan)
+```
+1)Berdasarkan Normal Q-Q Plot yang dihasilkan, terlihat bahwa sebaran titik-titik data awalnya mendekati garis kemudian terlihat menjauh dari garis saat di akhir yang berarti mengindikasikan sisaan tidak menyebar normal. Begitupun dengan histogram sisaan yang dihasilkan menunjukkan sebaran yang tidak normal.Namun hal ini akan diperiksa kembali melalui uji formal.
+
+2)Berdasarkan Plot Residual vs Fitted Values yang dihasilkan, terlihat bahwa sisaan tidak menyebar secara acak dan memiliki lebar pita yang tidak sama yang berarti ragam sisaan tidak homogen. Namun hal ini akan diperiksa kembali melalui uji formal.
+
+3)Berdasarkan Plot Residual vs Order yang dihasilkan, terlihat bahwa sisaan tidak menyebar secara acak melainkan memiliki pola naik turun (fluktuatif) yang berarti sisaan tidak saling bebas atau terindikasi adanya autokorelasi.
+
+4)Berdasarkan plot ACF dan PACF yang dihasilkan, terlihat bahwa selain pada lag 0, tidak terdapat beberapa garis vertikal yang melewati batas signifikan. Oleh karena itu dapat disimpulkan bahwa tidak terdapat autokorelasi. Hal ini berbanding terbalik dengan hasil plot residual vs order dan hal ini akan diperiksa kembali melalui uji formal.
+
+## Uji Formal
+```{r}
+# Uji normalitas sisaan
+shapiro.test(sisaan)
+```
+Hipotesis uji
+H0 : sisaan menyebar normal
+H1 : sisaan tidak menyebar normal
+
+Berdasarkan uji formal Saphiro-Wilk didapatkan nilai *p-value* \< $\alpha$ (5%) yang berarti cenderung tolak H0, sehingga cukup bukti untuk menyatakan sisaan tidak menyebar normal.
+
+```{r}
+# Uji kehomogenan ragam
+library(lmtest)
+bptest(model.rlb)
+```
+Hipotesis uji
+H0 : ragam sisaan homogen
+H1 : ragam sisaan tidak homogen
+
+Berdasarkan uji formal Breusch-Pagan didapatkan nilai *p-value* \> $\alpha$ (5%) yang berarti cenderung terima H0, sehingga cukup bukti untuk menyatakan ragam sisaan homogen.
+
+```{r}
+# Uji sisaan saling bebas (deteksi autokorelasi)
+library(lmtest)
+dwtest(model.rlb)
+```
+Hipotesis uji
+H0 : tidak terdapat autokorelasi (sisaan saling bebas)
+H1 : adanya autokorelasi (sisaan tidak saling bebas)
+
+Berdasarkan uji formal Durbin-Watson didapatkan nilai *p-value* \< $\alpha$ (5%) yang berarti cenderung tolak H0, sehingga cukup bukti untuk menyatakan bahwa adanya autokorelasi.
+
+Kemudian dapat dilihat berdasarkan hasil DW Test, didapatkan nilai $DW = 1.5516$. Berdasarkan tabel Durbin-Watson diperoleh nilai $dL = 1.5611$ dan $dU = 1.6751$ (diperoleh dari tabel yg k=2, karena peubah penjelasnya ada 2 dengan n = 72). Nilai DW tidak berada di antara nilai dL dan dU. Artinya, tidak berada di daerah inkonklusif, maka dapat dikatakan berada di daerah autokorelasi positif atau menunjukkan adanya autokorelasi. Oleh karena itu, diperlukan penangan autokorelasi. Penanganan yang akan digunakan menggunakan dua metode, yaitu Cochrane-Orcutt dan Hildret-Lu.
+
+```{r}
+# Multikolinieritas
+library(car)
+vif(model.rlb)
+```
+Nilai VIF dari kedua peubah bebas seluruhnya di bawah 10, maka dapat disimpulkan bahwa model regresi ini tidak mengandung multikolinieritas.
+
+## Penanganan Autokorelasi Metode Cochrane-Orcutt
+```{r}
+library(orcutt)
+modelCO<-cochrane.orcutt(model.rlb)
+modelCO
+```
+Hasil keluaran model setelah dilakukan penanganan adalah sebagai berikut: $$y_i=-0.649475+8.431929x1_t+0.469055x2_t+0.971049x3_t-6.362828x4_t$$ dan diperoleh nilai rho sebesar $0.196831$. Hasil juga menunjukkan bahwa nilai DW dan p-value meningkat menjadi $2.19093$ dan $0.6382$. Nilai DW hasil transformasi tersebut juga sudah berada pada rentang DU \< DW \< 4-DU atau $1.6751 < DW < 2.3249$. Hal tersebut juga didikung dengan diperoleh nilai *p-value* \> 0.05, artinya cukup bukti menyatakan bahwa sisaan tidak terdapat autokorelasi pada taraf nyata 5%.
+
+Berikut ada cara manualnya:
+```{r}
+# Menentukan Rho optimum
+rho<- modelCO$rho
+rho
+
+# Transformasi Manual
+y.trans<- y[-1]-y[-72]*rho
+x1.trans<- x1[-1]-x1[-72]*rho
+x2.trans<- x2[-1]-x2[-72]*rho
+x3.trans<- x3[-1]-x3[-72]*rho
+x4.trans<- x4[-1]-x4[-72]*rho
+modelCOmanual<- lm(y.trans~x1.trans+x2.trans+x3.trans+x4.trans)
+summary(modelCOmanual)
+```
+Berdasarkan hasil diatas diperoleh persamaan $$y_i=-0.52164+8.43193x1_t+0.46906x2_t+0.97105x3_t-6.36283x4_t$$. Namun hasil tersebut belum ditransformasi balik sehingga harus ditransformasi balik terlebih dahulu.
+
+```{r}
+# Transformasi balik
+cat("y = ", coef(modelCOmanual)[1]/(1-rho), "+", coef(modelCOmanual)[2],"x1", "+", coef(modelCOmanual)[3],"x2", "+", coef(modelCOmanual)[4],"x3", "+", coef(modelCOmanual)[5],"x4",sep = "")
+```
+Setelah ditansformasi balik diperoleh persamaan $$y_i=-0.649475+8.431929x1_t+0.469055x2_t+0.971049x3_t-6.362828x4_t$$. Hasil tersebut sama seperti hasil Cochrane-Orcutt sebelumnya yang menggunakan fungsi langsung.
+
+## Penanganan Autokorelasi Metode Hildreth-Lu
+```{r}
+library(HoRM)
+# Hildreth-Lu
+hildreth.lu.func<- function(r, model.rlb){
+  X <- model.matrix(model.rlb)[,-1]
+  y1 <- model.response(model.frame(model.rlb))
+  n <- length(y1)
+  t <- 2:n
+  y1 <- y1[t]-r*y1[t-1]
+  X <- X[t]-r*X[t-1]
+  
+  
+  return(lm(y1~X))
+}
+
+#Pencarian rho yang meminimumkan SSE
+r <- c(seq(0.1,0.9, by= 0.1))
+tab <- data.frame("rho" = r, "SSE" = sapply(r,function(i){deviance(hildreth.lu.func(i, model.rlb))}))
+round(tab, 4)
+
+#Membuat Grafik rho dan SSE
+plot(tab$SSE ~ tab$rho , type = "l")
+abline(v = tab[tab$SSE==min(tab$SSE),"rho"], lty = 3)
+```
+Berdasarkan hasil diatas, nilai SSE terkecil terdapat pada rho 0.9. Selanjutnya untuk lebih rinci akan dilakukan pemilihan rho terbaik disekitar 0.8 dan 0.9 dengan jarak 0.01.
+
+```{r}
+#Rho Optimal di sekitar 0.8 dan 0.9
+r <- seq(0.88,0.95, by= 0.01)
+tab <- data.frame("rho" = r, "SSE" = sapply(r, function(i){deviance(hildreth.lu.func(i, model.rlb))}))
+round(tab, 4)
+
+#Grafik SSE optimum
+plot(tab$SSE ~ tab$rho , type = "l")
+abline(v = tab[tab$SSE==min(tab$SSE),"rho"], lty = 3)
+```
+
+Dari grafik di atas, dapat terlihat bahwa nilai optimum berada di rho = $0.91$ dan memiliki nilai SSE terkecil sehingga nilai ini akan digunakan untuk merumuskan model terbaik pada tahap selanjutnya:
+
+```{r}
+#Model terbaik
+modelHL <- hildreth.lu.func(0.91, model.rlb)
+summary(modelHL)
+```
+Persamaan yang dihasilkan dengan menggunakan rho 0.91 adalah y = 1.9504 + 98.4941X. Hasil tersebut belum ditransformasi balik.
+
+```{r}
+#Transformasi Balik
+cat("y1 = ", coef(modelHL)[1]/(1-0.91), "+", coef(modelHL)[2],"X", sep = "")
+```
+Setelah dilakukan tranformasi balik, didapatkan model dengan metode Hildreth-Lu sebagai berikut. $$y_i=21.67162+98.49414x_t$$
+
+```{r}
+#Deteksi autokorelasi
+dwtest(modelHL)
+```
+Hasil uji Durbin-Watson menunjukkan bawah nilai DW sebesar $1.0159$ berada pada selang daerah ada autokorelasi, yaitu tidak pada rentang DU \< DW \< 4-DU atau $1.6751 < DW < 2.3249$. Hal tersebut juga didukung oleh *p-value* sebesar $0.000002868$, di mana *p-value* \< $\alpha$=5%. Artinya tolak $H_0$ atau cukup bukti menyatakan bahwa masih ada autokorelasi dalam data AQI dengan metode Hildreth-Lu pada taraf nyata 5%. Pada metode Hildreth-Lu menunjukkan hasil yang berbeda dengan metode Cochrane-Orcutt.
+
+Terakhir, akan dibandingkan nilai SSE dari ketiga metode (metode awal, metode Cochrane-Orcutt, dan Hildreth-Lu).
+
+```{r}
+#Perbandingan
+sseModelawal <- anova(model.rlb)$`Sum Sq`[-1]
+sseModelCO <- anova(modelCOmanual)$`Sum Sq`[-1]
+sseModelHL <- anova(modelHL)$`Sum Sq`[-1]
+mseModelawal <- sseModelawal/length(y)
+mseModelCO <- sseModelCO/length(y)
+mseModelHL <- sseModelHL/length(y)
+akurasi <- matrix(c(sseModelawal,sseModelCO,sseModelHL,
+                    mseModelawal,mseModelCO,mseModelHL),nrow=2,ncol=3,byrow = T)
+colnames(akurasi) <- c("Model Awal", "Model Cochrane-Orcutt", "Model Hildreth-Lu")
+row.names(akurasi) <- c("SSE","MSE")
+akurasi
+```
+Berdasarkan hasil tersebut dapat diketahui bahwa hasil penanganan autokorelasi dengan metode Cochrane-Orcutt dan Hildreth-Lu memiliki SSE yang cukup jauh berbeda. Nilai SSE model orcutt = $23.43341$ dan model hildreth-Lu = $2.910927$. Meskipun demikian, model orcutt dan hildreth tersebut lebih baik jika dibandingkan model awal ketika autokorelasi masih terjadi, yaitu sebesar $268.376282$. 
+
+# Simpulan
+
+Berdasarkan hasil analisis di atas, dapat disimpulkan bahwa pada data deret waktu New Delhi AQI terdapat autokorelasi. Hal ini dapat dideteksi setelah melakukan pengujian dengan secara eksploratif melalui metode grafik residual dan ACF PACF serta uji formal Durbin Watson. Oleh karena itu, dilakukan penanganan autokorelasi terhadap data AQI dengan metode Cochrane-Orcutt dan Hildreth-Lu. Setelah dilakukan penanganan menggunakan kedua metode tersebut, masalah autokorelasi pada data New Delhi AQI hanya dapat berhasil diatasi menggunakan metode Cochrane-Orcutt. Sedangkan dengan metode Hildreth-Lu tidak dapat teratasi atau masih terindikasi
+adanya autokorelasi.
