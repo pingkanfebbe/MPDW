@@ -1,0 +1,310 @@
+---
+title: "Tugas Praktikum 3 MPDW - Regresi dengan Peubah Lag"
+author: "Pingkan Febbe Fiorela Kereh"
+date: "2023-09-17"
+output: html_document
+---
+
+## *Packages*
+Berikut adalah beberapa packages yang digunakan:
+```{r}
+library(dLagM)
+library(dynlm)
+library(MLmetrics)
+library(lmtest)
+library(car)
+```
+
+## Input Data
+
+Data yang digunakan adalah data Air Quality Index (AQI) di New Delhi. Data ini terdiri dari 72 observasi (baris) dan 12 variabel (kolom).
+
+```{r}
+aqi <- read.csv("D:/COLLEGE/SMT 5/Metode Peramalan Deret Waktu/New Delhi AQI dataset.csv")
+str(aqi)
+```
+## Filtering Data
+
+Dilakukan filtering kolom data yang relevan dengan analisis regresi deret waktu.
+
+```{r}
+aqi <- aqi[c(2:9)]
+str(aqi)
+```
+## Korelasi antar Peubah
+
+Dilakukan eksplorasi terhadap seluruh peubah numerik pada data, khususnya untuk melihat korelasi antar peubah.
+
+```{r}
+library(GGally)
+GGally::ggpairs(aqi[sapply(aqi,is.numeric)])
+```
+
+Berdasarkan hasil matriks korelasi, dapat diketahui bahwa AQI memiliki nilai korelasi tertinggi dengan O3 yaitu sebesar $0.974$. Maka, akan dilakukan pemodelan regresi dengan peubah lag pada AQI sebagai peubah respon (Yt) dan O3 sebagai peubah bebas (Xt) sebagai berikut:
+
+```{r}
+aqi <- aqi[c(1,5)]
+Xt <- aqi$o3
+Yt <- aqi$AQI
+data1 <- cbind(Yt,Xt)
+data <- as.data.frame(data1)
+data
+```
+
+## Pembagian Data
+
+Dilakukan splitting data dengan data training sebesar 80% dari jumlah seluruh amatan yaitu 57 amatan dan data testing sebesar 20% dari jumlah seluruh amatan yaitu 15 amatan.
+
+```{r}
+#Split Data (80% training data, 20% testing data)
+train_data <- data[1:57,]
+test_data <- data[58:72,]
+```
+
+Setelah dilakukan splitting data, kemudian mengubah kedua data menjadi format data time series.
+
+```{r}
+#Data Time Series
+train.ts <- ts(train_data)
+test.ts <- ts(test_data)
+data.ts <- ts(data)
+```
+
+Berikut adalah plot training data dan testing data.
+
+```{r}
+#Plot Training Data
+plot(train_data$Xt,train_data$Yt,pch = 19, main = "Scatter Plot Data Training", ylab = "AQI", xlab = "O3")
+
+#Plot Testing Data
+plot(test_data$Xt,test_data$Yt,pch = 19, main = "Scatter Plot Data Testing", ylab = "AQI", xlab = "O3")
+```
+
+Berdasarkan plot yang dihasilkan. dapat terlihat bahwa kedua data memiliki pola yang mirip, ini mengindikasikan hal yang baik untuk menghindari terjadinya over/underfitting.
+
+## Model Koyck
+
+### Pemodelan
+
+```{r}
+model.koyck <- koyckDlm(x = train_data$Xt, y = train_data$Yt)
+summary(model.koyck)
+```
+Dari hasil tersebut, didapat bahwa peubah $x_t$ dan $y_{t-1}$ memiliki nilai $P-Value<0.05$. Hal ini menunjukkan bahwa peubah $x_t$ dan $y_{t-1}$ berpengaruh signifikan terhadap $y$ pada taraf nyata 5%. Artinya tingkat senyawa O3 pada periode saat ini dan nilai AQI pada satu periode sebelumnya mempengaruhi nilai AQI periode saat ini. Adapun model keseluruhannya adalah sebagai berikut:
+
+$$
+\hat{Y_t}=0.54798+0.25830X_t+0.41955Y_{t-1}
+$$
+
+### Peramalan dan Akurasi
+
+```{r}
+#Hasil Ramalan pada Model Koyck untuk 15 periode kedepan
+fore.koyck <- forecast(model = model.koyck, x=test_data$Xt, h=15)
+fore.koyck
+```
+Data di atas merupakan hasil peramalan AQI untuk 15 periode kedepan sesuai dengan jumlah amatan data testing, dengan menggunakan Model Koyck.
+
+```{r}
+#MAPE Testing Data
+mape.koyck <- MAPE(fore.koyck$forecasts, test_data$Yt)
+
+#Akurasi Training Data
+mape.train <- dLagM::GoF(model.koyck)["MAPE"]
+
+c("MAPE_testing" = mape.koyck, "MAPE_training" = mape.train)
+```
+Berdasarkan perhitungan MAPE di atas, terlihat bahwa nilai MAPE pada data forecasting yaitu sebesar $0.03187$ lebih besar dari nilai MAPE data training yaitu sebesar $0.01435$. Dapat dilihat juga bahwa nilai MAPE keduanya tidak jauh berbeda, yang berarti model regresi dengan model Koyck ini tidak overfitted atau underfitted. Model tersebut juga merupakan model yang sangat baik dengan nilai MAPE yang kurang dari 10%.  
+
+## Regression with Distributed Lag 
+
+### Pemodelan (Lag=2)
+```{r}
+model.dlm <- dlm(x = train_data$Xt,y = train_data$Yt , q = 2)
+summary(model.dlm)
+AIC(model.dlm)
+BIC(model.dlm)
+```
+Dari hasil diatas, didapat bahwa hanya $P-value$ dari $x_{t}<0.05$. Hal ini menunjukkan bahwa $x_{t}$ berpengaruh signifikan terhadap $y$ pada taraf nyata 5%. Artinya tingkat senyawa O3 periode saat ini mempengaruhi nilai AQI periode saat ini. Adapun model keseluruhan yang terbentuk adalah sebagai berikut:
+
+$$
+\hat{Y_t}=-0.052782+0.476379X_t-0.005756X_{t-1}-0.008392X_{t-2}
+$$
+
+### Peramalan dan Akurasi
+```{r}
+#Hasil Ramalan pada Model DLM untuk 15 periode kedepan
+fore.dlm <- forecast(model = model.dlm, x=test_data$Xt, h=15)
+fore.dlm
+```
+Data di atas merupakan hasil peramalan AQI untuk 15 periode kedepan sesuai dengan jumlah amatan data testing, dengan menggunakan Model Distributed Lag.
+
+```{r}
+#MAPE Testing Data
+mape.dlm <- MAPE(fore.dlm$forecasts, test_data$Yt)
+
+#Akurasi Training Data
+mape.train <- dLagM::GoF(model.dlm)["MAPE"]
+
+c("MAPE_testing" = mape.dlm, "MAPE_training" = mape.train)
+```
+Berdasarkan perhitungan MAPE di atas, terlihat bahwa nilai MAPE yang dihasilkan pada data forecasting yaitu sebesar $0.00682$ sudah lebih kecil dari nilai MAPE data training sebesar $0.00988$. Dapat dilihat juga bahwa nilai MAPE keduanya tidak jauh berbeda sehingga model regresi dengan distributed lag ini tidak overfitted atau underfitted. Model tersebut juga merupakan model yang sangat baik dengan nilai MAPE yang kurang dari 10%.
+
+## Regression with Distributed Lag Optimum
+
+### Penentuan Lag Optimum
+```{r}
+lag_optimum<-finiteDLMauto(formula=Yt ~ Xt,
+              data = data.frame(train_data),model.type = "dlm",error.type = "AIC");lag_optimum
+```
+Berdasarkan output tersebut, lag optimum didapatkan ketika lag = 10. Selanjutnya dilakukan pemodelan untuk lag = 10.
+
+### Pemodelan (Lag Optimum)
+```{r}
+model.dlm2 <- dlm(x = train_data$Xt,y = train_data$Yt , q = 10)
+summary(model.dlm2)
+AIC(model.dlm2)
+BIC(model.dlm2)
+```
+Dari hasil tersebut terdapat beberapa peubah yang berpengaruh signifikan terhadap $y$ pada taraf nyata 5% yaitu $x_t$ , $x_{t-7}$ , $x_{t-8}$ , $x_{t-9}$, dan $x_{t-10}$. Artinya nilai AQI periode saat ini dipengaruhi secara signifikan oleh tingkat senyawa O3 periode saat ini, tingkat senyawa O3 tujuh periode sebelumnya, tingkat senyawa O3 delapan periode sebelumnya, tingkat senyawa O3 sembilan periode sebelumnya dan tingkat senyawa O3 sepuluh periode sebelumnya. Adapun keseluruhan model yang terbentuk adalah:
+
+$$
+\hat{Y_t}=-0.294780+0.405638X_t+...+0.287823X_{t-7}-0.399437X_{t-8}+0.304147X_{t-9}-0.098958X_{t-10}
+$$
+
+### Peramalan dan Akurasi
+```{r}
+#Hasil Ramalan pada Model DLM Optimum untuk 15 periode kedepan
+fore.dlm2 <- forecast(model = model.dlm2, x=test_data$Xt, h=15)
+fore.dlm2
+```
+Data di atas merupakan hasil peramalan AQI untuk 15 periode kedepan sesuai dengan jumlah amatan data testing, dengan menggunakan Model Distributed Lag Optimum.
+
+```{r}
+#MAPE Testing Data
+mape.dlm2 <- MAPE(fore.dlm2$forecasts, test_data$Yt)
+
+#Akurasi Training Data
+mape.train <- dLagM::GoF(model.dlm2)["MAPE"]
+
+c("MAPE_testing" = mape.dlm2, "MAPE_training" = mape.train)
+```
+Berdasarkan perhitungan MAPE di atas, terlihat bahwa nilai MAPE yang dihasilkan pada data forecasting yaitu sebesar $0.01274$ lebih besar dari nilai MAPE data training sebesar $0.00723$.Dapat dilihat juga bahwa MAPE keduanya tidak jauh berbeda sehingga tidak overfitted atau underfitted. Model tersebut juga merupakan model yang sangat baik dengan nilai MAPE yang kurang dari 10%.
+
+## Model Autoregressive
+
+### Pemodelan (p = 1, q = 1)
+
+```{r}
+model.ardl <- ardlDlm(x = train_data$Xt, y = train_data$Yt, p = 1 , q = 1)
+summary(model.ardl)
+AIC(model.ardl)
+BIC(model.ardl)
+```
+Hasil di atas menunjukkan bahwa $x_t$, $x_{t-1}$, dan $y_{t-1}$ berpengaruh signifikan terhadap $y$ pada taraf nyata 5%, yang berarti tingkat senyawa O3 periode saat ini, tingkat senyawa O3 satu periode sebelumnya, dan nilai AQI satu periode sebelumnya, ketiganya mempengaruhi nilai AQI periode saat ini. Model keseluruhannya adalah sebagai berikut:
+
+$$
+\hat{Y}=-0.14906+0.47821X_t-0.22331X_{t-1}+0.45264Y_{t-1}
+$$
+
+### Peramalan dan Akurasi
+
+```{r}
+#Hasil ramalan pada Model Autoregressive untuk 15 periode kedepan
+fore.ardl <- forecast(model = model.ardl, x=test_data$Xt, h=15)
+fore.ardl
+```
+Data di atas merupakan hasil peramalan untuk 15 periode kedepan menggunakan Model Autoregressive dengan $p=1$ dan $q=1$.
+
+```{r}
+#MAPE Testing Data
+mape.ardl <- MAPE(fore.ardl$forecasts, test_data$Yt)
+
+#Akurasi Training Data 
+mape.train <- dLagM::GoF(model.ardl)["MAPE"]
+
+c("MAPE_testing" = mape.ardl, "MAPE_training" = mape.train)
+```
+Berdasarkan perhitungan MAPE di atas, terlihat bahwa nilai MAPE data forecasting yaitu sebesar $0.00689$ sudah lebih  kecil dari nilai MAPE data training sebesar $0.01160$. Dapat dilihat juga bahwa MAPE keduanya tidak jauh berbeda. Artinya, model regresi dengan Autogressive ini tidak overfitted atau underfitted. Model tersebut juga merupakan model yang sangat baik dengan nilai MAPE yang kurang dari 10%.
+
+## Model Autoregressive Optimum
+
+### Mencari parameter p dan q yang optimum
+```{r}
+model.ardl.opt <- ardlBoundOrders(data = data.frame(data), ic = "AIC", 
+                                  formula = Yt ~ Xt )
+min_p=c()
+for(i in 1:6){
+  min_p[i]=min(model.ardl.opt$Stat.table[[i]])
+}
+q_opt=which(min_p==min(min_p, na.rm = TRUE))
+p_opt=which(model.ardl.opt$Stat.table[[q_opt]] == 
+              min(model.ardl.opt$Stat.table[[q_opt]], na.rm = TRUE))
+data.frame("q_optimum" = q_opt, "p_optimum" = p_opt, 
+           "AIC"=model.ardl.opt$min.Stat)
+```
+Dari tabel di atas, dapat terlihat bahwa nilai AIC terendah didapat ketika $p=13$ dan $q=2$, yaitu sebesar $16.55044$. Artinya, model autoregressive optimum didapat ketika $p=13$ dan $q=2$.
+
+Selanjutnya dapat dilakukan pemodelan dengan nilai $p$ dan $q$ optimum seperti inisialisasi di langkah sebelumnya.
+
+### Pemodelan Autoregressive Optimum
+```{r}
+model.ardl2 = ardlDlm(x = train_data$Xt, y = train_data$Yt, p = 13, q = 2)
+summary(model.ardl2)
+```
+
+Hasil di atas menunjukkan bahwa hanya $x_t$ dan $x_{t-8}$ yang berpengaruh signifikan terhadap $y$ pada taraf nyata 5%, yang berarti tingkat senyawa O3 periode saat ini dan tingkat senyawa O3 delapan periode sebelumnya mempengaruhi nilai AQI periode saat ini. Model keseluruhannya adalah sebagai berikut:
+
+$$
+\hat{Y}=-0.77136+0.39407X_t+0.20786X_{t-1}+...-0.12772Y_{t-1}+0.06633Y_{t-2}
+$$
+
+### Peramalan dan Akurasi
+
+```{r}
+#Hasil Ramalan pada Model Autoregressive Optimum untuk 15 periode kedepan dengan p = 13, q = 2
+fore.ardl2 <- forecast(model = model.ardl2, x=test_data$Xt, h=15)
+fore.ardl2
+```
+Data di atas merupakan hasil peramalan untuk 15 periode kedepan menggunakan Model Autoregressive Optimum dengan $p=13$ dan $q=2$.
+
+```{r}
+#MAPE Testing Data
+mape.ardl2 <- MAPE(fore.ardl2$forecasts, test_data$Yt)
+
+#Akurasi Training Data 
+mape.train <- dLagM::GoF(model.ardl2)["MAPE"]
+
+c("MAPE_testing" = mape.ardl2, "MAPE_training" = mape.train)
+```
+Berdasarkan perhitungan MAPE di atas, terlihat bahwa nilai MAPE data forecasting yaitu sebesar $0.01378$ lebih besar dari nilai MAPE data training sebesar $0.00706$. Nilai MAPE keduanya juga tidak jauh berbeda. Artinya, model regresi dengan Autoregressive Optimum ini tidak overfitted atau underfitted. Model tersebut juga merupakan model yang sangat baik dengan nilai MAPE yang kurang dari 10%.
+
+## Perbandingan Model
+
+```{r}
+accurate <- matrix(c(mape.koyck, mape.dlm, mape.dlm2, mape.ardl, mape.ardl2))
+row.names(accurate)<- c("Koyck","DLM","DLM Optimum","Autoregressive", "Autoregressive Optimum")
+colnames(accurate) <- c("MAPE")
+accurate
+```
+Berdasarkan nilai MAPE, model paling optimum didapat pada Model DLM karena memiliki nilai MAPE yang terkecil.
+
+## Plot
+
+```{r}
+par(mfrow=c(1,1))
+plot(test_data$Xt, test_data$Yt, type="b", col="black",main="Perbandingan Metode Ramalan vs Aktual")
+points(test_data$Xt, fore.koyck$forecasts,col="red")
+lines(test_data$Xt, fore.koyck$forecasts,col="red")
+points(test_data$Xt, fore.dlm$forecasts,col="blue")
+lines(test_data$Xt, fore.dlm$forecasts,col="blue")
+points(test_data$Xt, fore.dlm2$forecasts,col="orange")
+lines(test_data$Xt, fore.dlm2$forecasts,col="orange")
+points(test_data$Xt, fore.ardl$forecasts,col="green")
+lines(test_data$Xt, fore.ardl$forecasts,col="green")
+points(test_data$Xt, fore.ardl2$forecasts,col="yellow")
+lines(test_data$Xt, fore.ardl2$forecasts,col="yellow")
+legend("topleft",c("Aktual", "Koyck","DLM","DLM Optimum", "Autoregressive", "Autoregressive Optimum"), lty=1, col=c("black","red","blue","orange","green","yellow"), cex=0.8)
+```
+
+Berdasarkan plot tersebut, terlihat bahwa plot yang paling mendekati data aktualnya adalah Model DLM, sehingga dapat disimpulkan model terbaik dalam hal ini adalah model regresi DLM.
