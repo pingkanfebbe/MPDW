@@ -1,0 +1,322 @@
+---
+title: "Tugas Praktikum 7 MPDW - Pemodelan & Diagnostik Model ARIMA"
+author: "Pingkan Febbe Fiorela Kereh - G1401211087"
+date: "2023-10-16"
+output: html_document
+---
+
+### Packages
+
+```{r}
+library(ggplot2)
+library(tsibble)
+library(tseries)
+library(MASS)
+library(forecast)
+library(TSA)
+library(TTR)
+library(aTSA)
+library(graphics)
+library(readxl)
+```
+
+### Input Data
+
+Data yang digunakan adalah data harga saham mingguan BCA periode 3 Januari 2021 - 27 Agustus 2023.
+
+```{r}
+data.bca <- read_excel("D:/COLLEGE/SMT 5/Metode Peramalan Deret Waktu/MPDW Tugas Praktikum/Data harga saham bca close.xlsx")
+data.bca.ts<-ts(data.bca)
+```
+
+### Eksplorasi Data
+
+#### Plot Data Penuh
+
+```{r}
+plot.ts(data.bca.ts, lty=1, xlab="Periode", ylab="Close", main="Plot Data Harga Saham BCA (close)")
+```
+
+Berdasarkan plot data deret waktu, terlihat bahwa data cenderung memiliki trend yang naik. Berdasarkan pola data, pembagian data latih dan data uji ditetapkan dengan proporsi 86%:14%.
+
+#### Plot Data Latih
+
+```{r}
+bcatrain<-data.bca[1:119,]
+train.bca.ts<-ts(bcatrain)
+plot.ts(train.bca.ts, lty=1, xlab="Periode", ylab="Close", main="Plot Close Train")
+```
+
+Berdasarkan plot data deret waktu pada data latih, terlihat bahwa data cenderung memiliki trend yang naik dan cenderung tidak bergerak pada nilai tengah tertentu. Hal ini mengindikasikan bahwa data tidak stasioner dalam rataan.
+
+#### Plot Data Uji
+
+```{r}
+bcatest<-data.bca[120:138,]
+test.bca.ts<-ts(bcatest)
+plot.ts(test.bca.ts, lty=1, xlab="Periode", ylab="Close", main="Plot Close Test")
+```
+
+### Uji Stasioneritas Data
+
+#### Plot ACF
+
+```{r}
+acf(train.bca.ts)
+```
+
+Berdasarkan plot ACF, terlihat bahwa plot ACF data menurun secara perlahan (*tails off slowly*). Hal ini juga mengindikasikan bahwa data tidak stasioner dalam rataan.
+
+#### Uji ADF
+
+```{r}
+tseries::adf.test(train.bca.ts)
+```
+
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar 0.1281 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa data tidak stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series dan plot ACF, sehingga ketidakstasioneran model kedepannya harus ditangani.
+
+#### Plot Box-Cox
+
+```{r}
+index <- seq(1:119)
+bc = boxcox(train.bca.ts~index, lambda = seq(5,10,by=1))
+#Nilai Rounded Lambda
+lambda <- bc$x[which.max(bc$y)]
+lambda
+#SK
+bc$x[bc$y > max(bc$y) - 1/2 * qchisq(.95,1)]
+```
+
+Plot Boxcox menunjukkan nilai *rounded value* ($\lambda$) optimum sebesar **5.00** dan pada selang kepercayaan 95% nilai memiliki batas bawah **5.00** dan batas atas **5.20**. Selang tersebut tidak memuat nilai satu sehingga dapat dikatakan bahwa data tidak stasioner dalam ragam.
+
+### Penanganan Ketidakstasioneran Data
+
+#### Differencing 1
+
+```{r}
+train.bca.diff1 <- diff(train.bca.ts,differences = 1) 
+plot.ts(train.bca.diff1, lty=1, xlab="waktu", ylab="Data Difference 1 Close", main="Plot Difference 1 Close")
+```
+
+Berdasarkan plot data deret waktu, terlihat bahwa data sudah cenderung stasioner dalam rataan ditandai dengan data bergerak pada nilai tengah tertentu (tidak terdapat trend ataupun musiman pada data).
+
+#### Plot ACF
+
+```{r}
+acf(train.bca.diff1)
+```
+
+Berdasarkan plot ACF tersebut, terlihat bahwa pada plot ACF tidak ada lag yang signifikan.
+
+#### Uji ADF
+
+```{r}
+tseries::adf.test(train.bca.diff1)
+```
+
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar 0.01 yang lebih kecil dari taraf nyata 5% sehingga tolak $H_0$ atau data stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series, namun berbeda dengan hasil plot ACF, sehingga dalam hal ini akan dicoba differencing yang kedua.
+
+#### Differencing 2
+
+```{r}
+train.bca.diff2 <- diff(train.bca.ts,differences = 2) 
+plot.ts(train.bca.diff2, lty=1, xlab="waktu", ylab="Data Difference 2 Close", main="Plot Difference 2 Close")
+```
+
+Berdasarkan plot deret waktu pada differencing ke 2 di atas, terlihat bahwa data masih cenderung stasioner dalam rataan.
+
+#### Plot ACF
+
+```{r}
+acf(train.bca.diff2)
+```
+
+Berdasarkan plot tersebut, terlihat bahwa plot ACF cuts off pada lag ke 1. Hal ini menandakan data sudah stasioner dalam rataan dan ketidakstasioneran data telah berhasil tertangani.
+
+#### Uji ADF
+
+```{r}
+tseries::adf.test(train.bca.diff2)
+```
+
+$H_0$ : Data tidak stasioner dalam rataan
+
+$H_1$ : Data stasioner dalam rataan
+
+Berdasarkan uji ADF tersebut, didapat *p-value* sebesar 0.01 yang lebih kecil dari taraf nyata 5% sehingga tolak $H_0$ atau data stasioner dalam rataan. Hal ini sesuai dengan hasil eksplorasi menggunakan plot time series dan plot ACF, sehingga dalam hal ini ketidakstasioneran data sudah berhasil ditangani dan dapat dilanjutkan ke pemodelan.
+
+### Identifikasi Model
+
+#### Plot ACF
+
+```{r}
+acf(train.bca.diff2)
+```
+
+Berdasarkan plot tersebut, terlihat bahwa plot ACF cenderung *cuts off* pada lag ke 1, sehingga jika plot PACF dianggap *tails off*, maka model tentatifnya adalah ARIMA(0,2,1).
+
+#### Plot PACF
+
+```{r}
+pacf(train.bca.diff2)
+```
+
+Berdasarkan plot tersebut, terlihat bahwa plot PACF cenderung *cuts off* pada lag ke 1, sehingga jika plot ACF dianggap *tails off*, maka model tentatifnya adalah ARIMA(1,2,0).
+
+Jika baik plot ACF maupun plot PACF keduanya dianggap tails off, maka model yang terbentuk adalah ARIMA(1,2,1)
+
+#### Plot EACF
+
+```{r}
+eacf(train.bca.diff2)
+```
+
+Identifikasi model menggunakan plot EACF dilakukan dengan melihat ujung segitiga pada pola segitiga nol. Dalam hal ini model tentatif yang terbentuk adalah ARIMA(0,2,1), ARIMA(1,2,2), dan ARIMA(2,2,3)
+
+### Pendugaan Parameter Model Tentatif
+
+#### ARIMA(0,2,1)
+
+```{r}
+mod1.da = Arima(train.bca.diff2, order=c(0,2,1),method="ML")
+summary(mod1.da) #AIC = 1736.2 
+lmtest::coeftest(mod1.da) #seluruh parameter signifikan
+```
+
+#### ARIMA(1,2,0)
+
+```{r}
+mod2.da = Arima(train.bca.diff2, order=c(1,2,0),method="ML")
+summary(mod2.da) #AIC = 1783.09
+lmtest::coeftest(mod2.da) #seluruh parameter signifikan
+```
+
+#### ARIMA(1,2,1)
+
+```{r}
+mod3.da = Arima(train.bca.diff2, order=c(1,2,1),method="ML")
+summary(mod3.da) #AIC = 1685.21
+lmtest::coeftest(mod3.da) #seluruh parameter signifikan
+```
+
+#### ARIMA(1,2,2)
+
+```{r}
+mod4.da = Arima(train.bca.diff2, order=c(1,2,2),method="ML")
+summary(mod4.da) #AIC = 1607.9 
+lmtest::coeftest(mod4.da) #seluruh parameter signifikan
+```
+
+Berdasarkan pendugaan parameter di atas, nilai AIC terkecil dimiliki oleh model ARIMA(1,2,2) dan parameter model ARIMA(1,2,2) juga seluruhnya signifikan sehingga model yang dipilih adalah model ARIMA(1,2,2).
+
+### Analisis Sisaan
+
+Model terbaik hasil identifikasi kemudian dicek asumsi sisaannya. Sisaan model ARIMA harus memenuhi asumsi normalitas, kebebasan sisaan, dan kehomogenan ragam. Diagnostik model dilakukan secara eksplorasi dan uji formal.
+
+#### Eksplorasi Sisaan
+
+```{r}
+#Eksplorasi 
+residual.da <- mod4.da$residuals 
+par(mfrow=c(2,2)) 
+qqnorm(residual.da) 
+qqline(residual.da, col = "blue", lwd = 2) 
+plot(c(1:length(residual.da)),residual.da) 
+acf(residual.da) 
+pacf(residual.da) 
+par(mfrow = c(1,1))
+```
+
+Berdasarkan plot kuantil-kuantil normal, secara eksplorasi ditunjukkan sisaan tidak menyebar normal ditandai dengan titik titik yang cenderung tidak mengikuti garis. Kemudian dapat dilihat juga lebar pita sisaan yang cenderung tidak sama menandakan bahwa sisaan memiliki ragam yang heterogen. Kemudian pada plot ACF dan PACF terlihat ada garis vertikal yang melebihi batas signifikan sehingga mengindikasikan sisaan ARIMA (1,2,2) tidak saling bebas. Kondisi ini akan diuji lebih lanjut dengan uji formal.
+
+#### Uji Formal
+
+```{r}
+#1) Sisaan Menyebar Normal 
+ks.test(residual.da,"pnorm")  #tak tolak H0 > sisaan menyebar normal
+```
+
+Selain dengan eksplorasi, asumsi tersebut dapat diuji menggunakan uji formal. Pada tahapan ini uji formal yang digunakan untuk normalitas adalah uji Kolmogorov-Smirnov (KS). Hipotesis pada uji KS adalah sebagai berikut.
+
+$H_0$ : Sisaan menyebar normal
+
+$H_1$ : Sisaan tidak menyebar normal
+
+Berdasarkan uji KS tersebut, didapat *p-value* sebesar 0.0000 yang kurang dari taraf nyata 5% sehingga tolak $H_0$ dan menandakan bahwa sisaan tidak menyebar normal. Hal ini sesuai dengan hasil eksplorasi menggunakan plot kuantil-kuantil normal.
+
+```{r}
+#2) Sisaan saling bebas/tidak ada autokorelasi 
+Box.test(residual.da, type = "Ljung")  #tak tolak H0 > sisaan saling bebas
+```
+
+Selanjutnya akan dilakukan uji formal untuk kebebasan sisaan menggunakan uji Ljung-Box. Hipotesis yang digunakan adalah sebagai berikut.
+
+$H_0$ : Sisaan saling bebas
+
+$H_1$ : Sisaan tidak tidak saling bebas
+
+Berdasarkan uji Ljung-Box tersebut, didapat *p-value* sebesar 0.1453 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa sisaan saling bebas. Hal ini berbeda dengan eksplorasi.
+
+```{r}
+#3) Sisaan homogen 
+Box.test((residual.da)^2, type = "Ljung")  #tak tolak H0 > sisaan homogen
+```
+
+Hipotesis yang digunakan untuk uji kehomogenan ragam adalah sebagai berikut.
+
+$H_0$ : Ragam sisaan homogen
+
+$H_1$ : Ragam sisaan tidak homogen
+
+Berdasarkan uji Ljung-Box terhadap sisaan kuadrat tersebut, didapat *p-value* sebesar 0.2707 yang lebih dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa ragam sisaan homogen.Hal ini berbeda dengan eksplorasi.
+
+```{r}
+#4) Nilai tengah sisaan sama dengan nol 
+t.test(residual.da, mu = 0, conf.level = 0.95)  #tak tolak h0 > nilai tengah sisaan sama dengan 0
+```
+
+Terakhir, dengan uji-t, akan dicek apakah nilai tengah sisaan sama dengan nol. Hipotesis yang diujikan sebagai berikut.
+
+$H_0$ : nilai tengah sisaan sama dengan 0
+
+$H_1$ : nilai tengah sisaan tidak sama dengan 0
+
+Berdasarkan uji-ttersebut, didapat *p-value* sebesar 0.9196 yang lebih besar dari taraf nyata 5% sehingga tak tolak $H_0$ dan menandakan bahwa nilai tengah sisaan sama dengan nol. 
+
+### Peramalan
+
+Peramalan dilakukan menggunakan fungsi `forecast()` . Contoh peramalan berikut ini dilakukan untuk 30 hari ke depan.
+
+```{r}
+#---FORECAST---#
+forecast.da <- forecast::forecast(mod4.da, h = 30) 
+forecast.da
+data.forecast.da <- forecast.da$mean
+plot(forecast.da)
+```
+
+Berdasarkan hasil plot ramalan di atas, dapat dilihat bahwa ramalan ARIMA(1,2,2) cenderung stabil hingga akhir periode. Selanjutnya, dapat dicari nilai akurasi antara hasil ramalan dengan data uji sebagai berikut.
+
+```{r}
+pt.1 <- train.bca.ts[119] #nilai akhir data latih
+result.forc.Diff <- data.forecast.da
+result <- diffinv(result.forc.Diff, differences = 2) + pt.1
+ts.plot(train.bca.ts,result)
+```
+
+```{r}
+perbandingan.da<-matrix(data=c(head(test.bca.ts, n=30), result[-1]),
+                     nrow = 30, ncol = 2)
+colnames(perbandingan.da)<-c("Aktual","Hasil Forecast")
+perbandingan.da
+accuracy(ts(result[-1]), head(test.bca.ts, n=30))
+```
+
